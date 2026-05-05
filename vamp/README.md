@@ -1,5 +1,13 @@
 # OMPL Workshop -- VAMP Demo
 
+## Installation
+
+TODO Figure out the best way to install these packages:
+
+- `rerun-sdk`
+- `ompl`
+- `vamp-planner`
+
 ## Instructions
 
 ### Planning with a VAMP state space
