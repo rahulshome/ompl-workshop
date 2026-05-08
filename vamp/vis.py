@@ -1,4 +1,5 @@
 import math
+import random
 from pathlib import Path
 from typing import Sequence
 
@@ -31,9 +32,9 @@ def log_environment(rec: rr.RecordingStream, path: str, env: vamp.Environment):
             quaternions=[
                 quat_from_r(
                     [
-                        [c.axis_1_x, c.axis_1_y, c.axis_1_z],
-                        [c.axis_2_x, c.axis_2_y, c.axis_2_z],
-                        [c.axis_3_x, c.axis_3_y, c.axis_3_z],
+                        [c.axis_1_x, c.axis_2_x, c.axis_3_x],
+                        [c.axis_2_y, c.axis_2_y, c.axis_3_y],
+                        [c.axis_3_z, c.axis_2_z, c.axis_3_z],
                     ]
                 )
                 for c in env.cuboids
@@ -53,9 +54,9 @@ def log_environment(rec: rr.RecordingStream, path: str, env: vamp.Environment):
             quaternions=[
                 quat_from_r(
                     [
-                        [c.axis_1_x, c.axis_1_y, c.axis_1_z],
-                        [c.axis_2_x, c.axis_2_y, c.axis_2_z],
-                        [c.axis_3_x, c.axis_3_y, c.axis_3_z],
+                        [c.axis_1_x, c.axis_2_x, c.axis_3_x],
+                        [c.axis_2_y, c.axis_2_y, c.axis_3_y],
+                        [c.axis_3_z, c.axis_2_z, c.axis_3_z],
                     ]
                 )
                 for c in env.z_aligned_cuboids
@@ -91,6 +92,27 @@ def log_environment(rec: rr.RecordingStream, path: str, env: vamp.Environment):
         ),
         static=True,
     )
+
+    colliding = []
+    for _ in range(10000):
+        x = random.uniform(-2, 2)
+        y = random.uniform(-2, 2)
+        z = random.uniform(-2, 2)
+
+        if not vamp.sphere.validate([x, y, z], env):
+            colliding.append([x, y, z])
+
+    rec.log(
+        f"{path}/colliding",
+        rr.Ellipsoids3D(
+            centers=[s for s in colliding],
+            half_sizes=[[0.2] * 3] * len(colliding),
+            colors=[[253, 253, 150]] * len(colliding),
+            fill_mode=rr.components.FillMode.Solid,
+        ),
+        static=True,
+    )
+
     # hack to make coordinate frames make sense
     rec.log(
         "transforms",
@@ -113,7 +135,7 @@ def log_traj(rec: rr.RecordingStream, traj: og.PathGeometric):
 
     traj.interpolate(traj.getStateCount() * 15)
     i = 0
-    print(vamp.panda.joint_names())
+
     for q in traj.getStates():
         for theta, joint_name in zip(q, vamp.panda.joint_names()):
             # Animate joints by logging transforms
@@ -124,6 +146,22 @@ def log_traj(rec: rr.RecordingStream, traj: og.PathGeometric):
                     transform = joint.compute_transform(theta)
                     rec.set_time("frame_idx", sequence=i)
                     rec.log("transforms", transform)
+
+        spheres = vamp.panda.fk(q[:7])
+        rec.log(
+            "robot_spheres",
+            rr.Ellipsoids3D(
+                centers=[s.position for s in spheres],
+                half_sizes=[[s.r] * 3 for s in spheres],
+                colors=[[253, 253, 200]] * len(spheres),
+                fill_mode=rr.components.FillMode.DenseWireframe,
+            ),
+        )
+        rec.log(
+            "transforms",
+            rr.Transform3D(parent_frame="world", child_frame="tf#/robot_spheres"),
+            static=True,
+        )
         i += 1
 
     rec.log(
@@ -138,7 +176,6 @@ def quat_from_r(R) -> rr.Quaternion:
     Convert a rotation matrix to a Rerun quaternion.
     """
     print(f"r={R}")
-
     print("-------------")
     [r11, r12, r13] = R[0]
     [r21, r22, r23] = R[1]
@@ -150,11 +187,10 @@ def quat_from_r(R) -> rr.Quaternion:
     q2 = 0.5 * math.copysign(math.sqrt(1 - r11 + r22 - r33), r13 - r31)
     q3 = 0.5 * math.copysign(math.sqrt(1 - r11 - r22 + r33), r21 - r12)
 
-    return rr.Quaternion(xyzw=[q0, q1, q2, q3])
+    return rr.Quaternion(xyzw=[q1, q2, q3, q0])
 
 
 def capsule_quat(v: Sequence[float]) -> rr.Quaternion:
-    print(f"v={v}")
     norm = math.sqrt(sum(vi * vi for vi in v))
     vhat = [vi / norm for vi in v]
 
