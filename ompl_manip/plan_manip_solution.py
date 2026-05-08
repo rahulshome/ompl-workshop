@@ -1,5 +1,5 @@
 """
-ompl_manip: Motion planning for a UR5 arm with coal collision checking.
+ompl_manip: Motion planning for a Panda arm with coal collision checking.
 
 Loads the spherized URDF via pinocchio (kinematic + geometry model),
 parses a scene YAML into coal obstacle geometries, and plans a
@@ -21,17 +21,18 @@ from ompl import geometric as og
 
 
 HERE = os.path.dirname(__file__)
-URDF_PATH = os.path.join(HERE, "../ur5/ur5_spherized.urdf")
-SCENE_PATH = os.path.join(HERE, "../problems/box_ur5/scene0001.yaml")
-REQUEST_PATH = os.path.join(HERE, "../problems/box_ur5/request0001.yaml")
+URDF_PATH = os.path.join(HERE, "../panda/panda_spherized.urdf")
+SCENE_PATH = os.path.join(HERE, "../problems/box_panda/scene0001.yaml")
+REQUEST_PATH = os.path.join(HERE, "../problems/box_panda/request0001.yaml")
 
 ARM_JOINT_NAMES = [
-    "shoulder_pan_joint",
-    "shoulder_lift_joint",
-    "elbow_joint",
-    "wrist_1_joint",
-    "wrist_2_joint",
-    "wrist_3_joint",
+    "panda_joint1",
+    "panda_joint2",
+    "panda_joint3",
+    "panda_joint4",
+    "panda_joint5",
+    "panda_joint6",
+    "panda_joint7",
 ]
 DIMENSION = len(ARM_JOINT_NAMES)
 
@@ -94,8 +95,8 @@ def build_scene_obstacles(scene_yaml_path):
 # Robot kinematics + collision model
 # ----------------------------
 
-class UR5Kinematics:
-    """Pinocchio kinematic + geometry model for the UR5 arm."""
+class PandaKinematics:
+    """Pinocchio kinematic + geometry model for the Panda arm."""
 
     def __init__(self, urdf_path):
         # Kinematic model
@@ -113,25 +114,47 @@ class UR5Kinematics:
             self.model.getJointId(name) for name in ARM_JOINT_NAMES
         ]
 
-    def make_config(self, q6):
-        """Build a full pinocchio configuration from the 6 arm joint values."""
+        # Geometry index pairs to check for self-collision (non-adjacent links)
+        self.self_collision_pairs = self._build_self_collision_pairs()
+
+    def _build_self_collision_pairs(self):
+        """Return (i, j) geometry index pairs eligible for self-collision checks.
+
+        Skips pairs on the same joint or on parent-child adjacent joints, which
+        would collide by construction in a spherized model.
+        """
+        n = len(self.geom_model.geometryObjects)
+        pairs = []
+        for i in range(n):
+            ji = self.geom_model.geometryObjects[i].parentJoint
+            for j in range(i + 1, n):
+                jj = self.geom_model.geometryObjects[j].parentJoint
+                if ji == jj:
+                    continue
+                if self.model.parents[ji] == jj or self.model.parents[jj] == ji:
+                    continue
+                pairs.append((i, j))
+        return pairs
+
+    def make_config(self, q7):
+        """Build a full pinocchio configuration from the 7 arm joint values."""
         q = pin.neutral(self.model)
         for i, jid in enumerate(self.arm_joint_ids):
-            q[self.model.joints[jid].idx_q] = q6[i]
+            q[self.model.joints[jid].idx_q] = q7[i]
         return q
 
-    def get_world_geometries(self, q6):
+    def get_world_geometries(self, q7):
         """Return world-frame coal geometries for all robot collision objects.
 
         Runs FK and updates every geometry placement in one pinocchio call.
 
         Args:
-            q6: 6-element arm configuration [shoulder_pan, ..., wrist_3].
+            q7: 7-element arm configuration [panda_joint1, ..., panda_joint7].
 
         Returns:
             list of (coal_shape, coal_Transform3f) in world coordinates.
         """
-        q = self.make_config(q6)
+        q = self.make_config(q7)
         pin.forwardKinematics(self.model, self.data, q)
         pin.updateGeometryPlacements(
             self.model, self.data, self.geom_model, self.geom_data
@@ -170,6 +193,15 @@ class ManipStateValidityChecker(ob.StateValidityChecker):
                 coal.collide(robot_shape, robot_tf, obs_geom, obs_tf, self._req, res)
                 if res.isCollision():
                     return False
+
+        for i, j in self.kinematics.self_collision_pairs:
+            shape_i, tf_i = robot_geoms[i]
+            shape_j, tf_j = robot_geoms[j]
+            res = coal.CollisionResult()
+            coal.collide(shape_i, tf_i, shape_j, tf_j, self._req, res)
+            if res.isCollision():
+                return False
+
         return True
 
 
@@ -201,7 +233,7 @@ def load_request(request_yaml_path):
 # ----------------------------
 
 def main():
-    kinematics = UR5Kinematics(URDF_PATH)
+    kinematics = PandaKinematics(URDF_PATH)
     n_geoms = len(kinematics.geom_model.geometryObjects)
     print(f"Robot collision model: {n_geoms} sphere geometries")
 

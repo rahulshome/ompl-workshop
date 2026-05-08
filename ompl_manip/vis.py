@@ -6,15 +6,16 @@ import coal
 import rerun as rr
 from ompl import geometric as og
 
-_VISUAL_URDF = Path(__file__).parent / "../ur5/ur5.urdf"
+_VISUAL_URDF = Path(__file__).parent / "../panda/panda.urdf"
 
 _ARM_JOINT_NAMES = [
-    "shoulder_pan_joint",
-    "shoulder_lift_joint",
-    "elbow_joint",
-    "wrist_1_joint",
-    "wrist_2_joint",
-    "wrist_3_joint",
+    "panda_joint1",
+    "panda_joint2",
+    "panda_joint3",
+    "panda_joint4",
+    "panda_joint5",
+    "panda_joint6",
+    "panda_joint7",
 ]
 
 # rerun Capsules3D are Y-aligned; scene cylinders are Z-aligned in their local frame.
@@ -88,6 +89,6 @@ def log_path(rec: rr.RecordingStream, path: og.PathGeometric, dimension: int):
 
     rec.log(
         "transforms",
-        rr.Transform3D(parent_frame="world", child_frame="offset_link"),
+        rr.Transform3D(parent_frame="world", child_frame="panda_link0"),
         static=True,
     )
