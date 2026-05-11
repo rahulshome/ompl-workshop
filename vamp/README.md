@@ -1,12 +1,14 @@
 # OMPL Workshop -- VAMP Demo
 
+In this demonstration, we'll show you how to use sampling-based planners from the Open Motion Planning Library (OMPL) with the hardware-accelerated state validators from Vector-Accelerated Motion Planning (VAMP).
+
 ## Installation
 
-TODO Figure out the best way to install these packages:
+To install all dependencies, you can simply install via `requirements.txt`.
 
-- `rerun-sdk`
-- `ompl`
-- `vamp-planner`
+```sh
+pip install -r requirements.txt
+```
 
 ## Instructions
 
@@ -74,3 +76,41 @@ Once you are done, **run `panda-planning.py` again**.
 The visualized trajectory should now avoid collision.
 
 ![](screenshots/avoiding.png)
+
+### Bonus: play with the environments
+
+If you finish up early, try playing with the environments to make harder motion planning problems.
+You can do this by editing `make_environment()` to have new primitives in it.
+
+```python
+
+def make_environment() -> vamp.Environment:
+    """
+    Construct the collision-checking environment for this problem.
+    """
+    env = vamp.Environment()
+
+    # ... add your own things here!
+
+    return env
+```
+
+You can add primitive objects using methods like `env.add_cuboid` and `env.add_capsule`.
+You can also add point clouds with `env.add_pointcloud` with a list of 3D points.
+
+## Planning against the MotionBenchMaker environments
+
+To benchmark against harder problems, we've provided a loader in `mbm.py` that can construct VAMP environments for the MotionBenchMaker dataset.
+To use it, all we have to do is replace our call to `make_environment` with `mbm.load_scene`, then load new start and goal configurations with `mbm.load_request`.
+
+```diff
+-   env = make_environment()
++   env = mbm.load_scene("problems/bookshelf_tall_panda/scene0001.yaml")
+```
+
+```diff
+-   [q_start, q_end] = [Q_START, Q_END]
++   q_start, q_end = mbm.load_request("problems/bookshelf_tall_panda/request0001.yaml")
+```
+
+You can update the paths in these lines with different problem locations (such as `problems/cage_panda/request0002.yaml` and `problems/cage_panda/scene0002.yaml`) to try new scenes and problems.

@@ -10,7 +10,9 @@ packaging==26.2
 pillow==12.2.0
 pyparsing==3.3.2
 python-dateutil==2.9.0.post0
+scipy
 six==1.17.0
 pin
 pyyaml
 rerun-sdk
+vamp-planner==0.6.4
