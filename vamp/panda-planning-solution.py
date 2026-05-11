@@ -1,5 +1,6 @@
 import time
-from typing import types.ModuleType, Sequence
+import types
+from typing import Sequence
 
 import mbm
 import rerun as rr
@@ -72,7 +73,9 @@ class VampMotionValidator(ob.MotionValidator):
     robot: types.ModuleType
     env: vamp.Environment
 
-    def __init__(self, si: ob.SpaceInformation, env: vamp.Environment, robot: types.ModuleType):
+    def __init__(
+        self, si: ob.SpaceInformation, env: vamp.Environment, robot: types.ModuleType
+    ):
         super().__init__(si)
         self.env = env
         self.robot = robot
@@ -148,10 +151,17 @@ def make_environment() -> vamp.Environment:
 
     env.add_capsule(
         vamp.Cylinder(
-            [-0.35, -0.35, -0.2],  # start point
+            [-0.35, -0.35, 0.5],  # start point
             [0.0, 0.0, 0.0],  # Euler angles rotation
             0.2,  # radius
             0.8,  # length
+        )
+    )
+    env.add_cuboid(
+        vamp.Cuboid(
+            [0.3, 0.3, 0.5],  # box midpoint
+            [0.0, 0.0, 1.1],  # Euler angles rotation
+            [0.1, 0.3, 0.4],  # half-extents
         )
     )
     env.add_cuboid(

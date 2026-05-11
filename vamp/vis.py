@@ -3,8 +3,8 @@ import random
 from pathlib import Path
 from typing import Sequence
 
-import pinocchio as pin
 import rerun as rr
+import scipy
 from ompl import geometric as og
 
 import vamp
@@ -93,6 +93,27 @@ def log_environment(rec: rr.RecordingStream, path: str, env: vamp.Environment):
         static=True,
     )
 
+    # # test code for checking correctness of vis
+    # colliding = []
+    # for _ in range(10000):
+    #     x = random.uniform(-2, 2)
+    #     y = random.uniform(-2, 2)
+    #     z = random.uniform(-2, 2)
+
+    #     if not vamp.sphere.validate([x, y, z], env):
+    #         colliding.append([x, y, z])
+
+    # rec.log(
+    #     f"{path}/colliding",
+    #     rr.Ellipsoids3D(
+    #         centers=[s for s in colliding],
+    #         half_sizes=[[0.2] * 3] * len(colliding),
+    #         colors=[[253, 253, 150]] * len(colliding),
+    #         fill_mode=rr.components.FillMode.Solid,
+    #     ),
+    #     static=True,
+    # )
+
     # hack to make coordinate frames make sense
     rec.log(
         "transforms",
@@ -171,7 +192,18 @@ def quat_from_r(R) -> rr.Quaternion:
 
 
 def capsule_quat(v: Sequence[float]) -> rr.Quaternion:
+    print(v)
     norm = math.sqrt(sum(vi * vi for vi in v))
-    vhat = [vi / norm for vi in v]
+    v = [vi / norm for vi in v]
 
-    return rr.Quaternion(xyzw=[-vhat[1], vhat[0], 0, vhat[2]])
+    theta = -math.acos(v[2])
+    rotvec = [-v[1] * theta, v[0] * theta, 0]
+    rotation = scipy.spatial.transform.Rotation.from_rotvec(rotvec)
+    if rotvec == [0, 0, 0]:
+        rotation = scipy.spatial.transform.Rotation.from_euler(
+            "xyz", [180, 0, 0], degrees=True
+        )
+
+    # TODO fix this to make capsules correct
+
+    return rr.Quaternion(xyzw=rotation.as_quat())

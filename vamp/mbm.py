@@ -1,7 +1,3 @@
-import math
-from typing import Sequence
-
-import numpy as np
 import yaml
 from scipy.spatial.transform import Rotation
 
@@ -61,15 +57,14 @@ def load_scene(scene_yaml_path):
             if ptype == "box":
                 env.add_cuboid(vamp.Cuboid(t, r.as_euler("xyz"), [d / 2 for d in dims]))
             elif ptype == "cylinder":
-                half_length = dims[0]
+                length = dims[0]
                 radius = dims[1]
-                p = list(np.array(t) + r.apply([[0, 0, -half_length]])[0])
                 env.add_capsule(
                     vamp.Cylinder(
-                        p,
+                        t,
                         r.as_euler("xyz"),
                         radius,
-                        half_length * 2,
+                        length,
                     )
                 )
             elif ptype == "sphere":
