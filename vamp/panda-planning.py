@@ -33,7 +33,7 @@ def main():
         Overwrite `si`'s state validity checkers with your motion and state validity
         checker implementations.
     """
-    env = None
+    env = make_environment()
 
     # Build SimpleSetup object
     ss = og.SimpleSetup(si)
@@ -159,7 +159,6 @@ def make_environment() -> vamp.Environment:
             [0.1, 0.3, 0.4],  # half-extents
         )
     )
-    env.add_point
     return env
 
 
