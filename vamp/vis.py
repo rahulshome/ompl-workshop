@@ -170,6 +170,7 @@ def log_traj(rec: rr.RecordingStream, traj: og.PathGeometric):
         rr.Transform3D(parent_frame="world", child_frame="panda_link0"),
         static=True,
     )
+    rec.flush()
 
 
 def quat_from_r(R) -> rr.Quaternion:
