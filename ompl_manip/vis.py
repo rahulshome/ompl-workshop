@@ -90,3 +90,4 @@ def log_path(rec: rr.RecordingStream, path: og.PathGeometric, dimension: int):
         rr.Transform3D(parent_frame="world", child_frame="panda_link0"),
         static=True,
     )
+    rec.flush()
