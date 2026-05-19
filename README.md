@@ -10,51 +10,41 @@ Avoid ICRA 2026 `ompl_basics`
 
 ---
 
-## Setup for Linux / macOS
+## System Requirements
+- Linux, MacOS, or Windows with a WSL 2 Linux distribution (e.g. Ubuntu, installable from the Microsoft Store)
+- Python version between 3.11 to 3.13, pip
+- git
+- Eigen
+On WSL/Ubuntu (other distribution package managers offer similar packages)
+```bash
+sudo apt install libeigen3-dev
+```
+On MacOS
+```bash
+brew install eigen
+```
 
-**Prerequisites:** Python version between 3.11 to 3.13, pip
+## Setup
 
-**1. Clone this repository
+**1. Clone this repository**
 
 ```bash
 git clone https://github.com/KavrakiLab/ompl-workshop.git
 cd ompl-workshop
 ```
 
-**2. Create and source a virtual environment 
+**2. Create and source a virtual environment**
 
 ```bash
 python -m venv env
 source env/bin/activate
 ```
 
-**3. Install dependencies
+**3. Install dependencies**
 
 ```bash
 python -m pip install -r requirements.txt
 ```
-
----
-
-## Setup for Windows 11
-
-**Prerequisites:**
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) with the WSL 2 backend enabled
-- A WSL 2 Linux distribution (e.g. Ubuntu, installable from the Microsoft Store)
-
-**1. Load the image** (run once, inside a WSL 2 terminal):
-
-```bash
-docker load -i ompl_tutorial.tar
-```
-
-**2. Start the container** from the tutorial directory:
-
-```bash
-./run.sh
-```
-
-This mounts the current directory into the container, so you can edit files with any editor on your host and run them inside the container.
 
 ---
 
