@@ -121,6 +121,8 @@ def log_environment(rec: rr.RecordingStream, path: str, env: vamp.Environment):
         static=True,
     )
 
+    rec.flush()
+
 
 def log_traj(rec: rr.RecordingStream, traj: og.PathGeometric):
 
