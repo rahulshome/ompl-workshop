@@ -15,6 +15,7 @@ Avoid ICRA 2026 `ompl_basics`
 - Python version between 3.11 to 3.13, pip
 - git
 - Eigen
+
 On WSL/Ubuntu (other distribution package managers offer similar packages)
 ```bash
 sudo apt install libeigen3-dev
