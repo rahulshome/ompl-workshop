@@ -40,12 +40,9 @@ python -m pip install -r requirements.txt
 
 ## Demos
 
-This repository contains two main workshops:
+This repository contains a main hands on component:
 
-### 1. Minimal Manipulator Planning (`ompl_manip`)
-A minimal manipulator planning demo using OMPL.
-
-### 2. Tabletop Pick Demo (`vamp`)
+### Tabletop Pick Demo (`vamp`)
 An accelerated tabletop pick demo using OMPL and VAMP.
 
 * **Plan the path**:
@@ -82,3 +79,6 @@ If you wish to run the Rerun-based demos:
    ```bash
    WGPU_BACKEND=vulkan python <script_dir>/<script_name>.py
    ```
+
+### ⚠️ Optional Demo: Minimal Manipulator Planning (`ompl_manip`)
+A minimal manipulator planning demo using OMPL.
