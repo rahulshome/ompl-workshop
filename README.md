@@ -16,25 +16,6 @@ On MacOS
 brew install eigen
 ```
 
-### ⚠️ Note for WSL users
-The workshop uses [rerun](https://rerun.io/) for visualization. rerun is known to have some issues working out of the box on WSL, so it is recommended to test your rerun installation ahead of the tutorial and follow the instructions in [https://rerun.io/docs/getting-started/install-rerun/troubleshooting#running-on-wsl2-ubuntu](https://rerun.io/docs/getting-started/install-rerun/troubleshooting#running-on-wsl2-ubuntu).
-
-We recommend installing the Vulkan drivers:
-```bash
-sudo add-apt-repository ppa:kisak/kisak-mesa
-sudo apt-get update
-sudo apt-get install -y mesa-vulkan-drivers
-```
-
-Then testing your installation using the following:
-```bash
-rerun --renderer=vulkan
-```
-
-And during the tutorial running both tutorial scripts with **`WGPU_BACKEND=vulkan`**, as shown below:
-```bash
-WGPU_BACKEND=vulkan python <script_dir>/<script_name>.py
-```
 ## Setup
 
 **1. Clone this repository**
@@ -56,3 +37,48 @@ source env/bin/activate
 ```bash
 python -m pip install -r requirements.txt
 ```
+
+## Demos
+
+This repository contains two main workshops:
+
+### 1. Minimal Manipulator Planning (`ompl_manip`)
+A minimal manipulator planning demo using OMPL.
+
+### 2. Tabletop Pick Demo (`vamp`)
+An accelerated tabletop pick demo using OMPL and VAMP.
+
+* **Plan the path**:
+  ```bash
+  python vamp/pick.py
+  ```
+* **Visualize the path**:
+  Open **[vamp/visualizer.html](vamp/visualizer.html)** in a web browser, and drag-and-drop the generated `vamp/trajectory_data.json` file into the uploader interface to watch the 3D playback.
+* **Visualize the static scene**:
+  Open **[vamp/scene_visualizer.html](vamp/scene_visualizer.html)** in a web browser to view the static tabletop environment and check static poses.
+
+
+
+### ⚠️ Optional: Rerun Visualization
+The minimal manipulator demo (`ompl_manip`) and the original VAMP planning templates use [Rerun](https://rerun.io/) for visualization. Installing Rerun is **optional** and can be skipped if you only plan to run the tabletop pick demo (which uses the browser-based WebGL visualizer).
+
+If you wish to run the Rerun-based demos:
+1. **Install Rerun**:
+   ```bash
+   pip install rerun-sdk
+   ```
+2. **WSL Vulkan Configuration**:
+   It is recommended to set up Vulkan drivers for WSL:
+   ```bash
+   sudo add-apt-repository ppa:kisak/kisak-mesa
+   sudo apt-get update
+   sudo apt-get install -y mesa-vulkan-drivers
+   ```
+   Test your setup with:
+   ```bash
+   rerun --renderer=vulkan
+   ```
+   And run those scripts with `WGPU_BACKEND=vulkan`:
+   ```bash
+   WGPU_BACKEND=vulkan python <script_dir>/<script_name>.py
+   ```

@@ -2,8 +2,15 @@ import time
 import types
 
 import mbm
-import rerun as rr
-import vis
+try:
+    import rerun as rr
+    import vis
+except ImportError:
+    print("\n[ERROR] The rerun-sdk library is not installed.")
+    print("This demo requires Rerun for visualization.")
+    print("To install it, run: pip install rerun-sdk\n")
+    import sys
+    sys.exit(1)
 from ompl import base as ob
 from ompl import geometric as og
 
@@ -29,10 +36,9 @@ def main():
     # Select a planner
     planner = og.RRTConnect(si)
 
-    """
-    TODO: Overwrite `si`'s state validity checkers with your motion and state validity
-            checker implementations.
-    """
+    # Set validators
+    si.setMotionValidator(VampMotionValidator(si=si, env=env, robot=robot))
+    si.setStateValidityChecker(VampStateValidityChecker(si=si, env=env, robot=robot))
 
     # Build SimpleSetup object
     ss = og.SimpleSetup(si)
@@ -76,12 +82,16 @@ class VampMotionValidator(ob.MotionValidator):
     def __init__(
         self, si: ob.SpaceInformation, env: vamp.Environment, robot: types.ModuleType
     ):
-        raise NotImplementedError("Implement constructor for VampMotionValidator")
+        super().__init__(si)
+        self.env = env
+        self.robot = robot
 
     def checkMotion(
         self, s1: ob.RealVectorStateType, s2: ob.RealVectorStateType
     ) -> bool:
-        raise NotImplementedError("Implement motion checker for VampMotionValidator")
+        config1 = s1[: self.robot.dimension()]
+        config2 = s2[: self.robot.dimension()]
+        return self.robot.validate_motion(config1, config2, self.env)
 
 
 class VampStateValidityChecker(ob.StateValidityChecker):
@@ -93,10 +103,12 @@ class VampStateValidityChecker(ob.StateValidityChecker):
     def __init__(
         self, si: ob.SpaceInformation, env: vamp.Environment, robot: types.ModuleType
     ):
-        raise NotImplementedError("Implement constructor for VampStateValidityChecker")
+        super().__init__(si)
+        self.env = env
+        self.robot = robot
 
     def isValid(self, s: ob.RealVectorStateType) -> bool:
-        raise NotImplementedError("Implement validator for VampStateValidityChecker")
+        return self.robot.validate(s[: self.robot.dimension()], self.env)
 
 
 class VampStateSpace(ob.RealVectorStateSpace):

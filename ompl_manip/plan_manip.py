@@ -13,9 +13,15 @@ import yaml
 
 import pinocchio as pin
 import coal
-import rerun as rr
-
-import vis
+try:
+    import rerun as rr
+    import vis
+except ImportError:
+    print("\n[ERROR] The rerun-sdk library is not installed.")
+    print("This minimal manipulator demo requires Rerun for visualization.")
+    print("To install it, run: pip install rerun-sdk\n")
+    import sys
+    sys.exit(1)
 
 from ompl import base as ob
 from ompl import geometric as og
@@ -225,13 +231,29 @@ def main():
 
     start_q, goal_q = load_request(REQUEST_PATH)
 
-    """
-    TODO list for creating and invoking an OMPL planner
-    """
-    # 1. Create state space
-    # 2. Create SpaceInformation and state validator
-    # 3. Create Planner and SimpleSetup
-    # 4. Run the planner
+    # 6-DOF joint space, all joints bounded to [-pi, pi]
+    space = ob.RealVectorStateSpace(DIMENSION)
+    bounds = ob.RealVectorBounds(DIMENSION)
+    for i in range(DIMENSION):
+        bounds.setLow(i, -np.pi)
+        bounds.setHigh(i, np.pi)
+    space.setBounds(bounds)
+
+    si = ob.SpaceInformation(space)
+    si.setStateValidityChecker(partial(robot_collides, kinematics, obstacles))
+    si.setStateValidityCheckingResolution(0.02)
+
+    start = si.allocState()
+    goal = si.allocState()
+    start[:DIMENSION] = start_q[:]
+    goal[:DIMENSION] = goal_q[:]
+
+    ss = og.SimpleSetup(si)
+    ss.setStartAndGoalStates(start, goal)
+    ss.setPlanner(og.RRTConnect(si))
+
+    print(f"Planning from {np.round(start_q, 3)} to {np.round(goal_q, 3)} ...")
+    result = ss.solve(30.0)
 
     if result:
         path = ss.getSolutionPath()

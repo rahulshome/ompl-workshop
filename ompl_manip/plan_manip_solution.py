@@ -13,9 +13,15 @@ import yaml
 
 import pinocchio as pin
 import coal
-import rerun as rr
-
-import vis
+try:
+    import rerun as rr
+    import vis
+except ImportError:
+    print("\n[ERROR] The rerun-sdk library is not installed.")
+    print("This minimal manipulator demo requires Rerun for visualization.")
+    print("To install it, run: pip install rerun-sdk\n")
+    import sys
+    sys.exit(1)
 
 from ompl import base as ob
 from ompl import geometric as og

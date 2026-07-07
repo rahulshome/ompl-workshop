@@ -45,6 +45,8 @@ def load_scene(scene_yaml_path):
 
     env = vamp.Environment()
     for obj in scene.get("world", {}).get("collision_objects", []):
+        if "mounting_base" in obj.get("id", ""):
+            continue
         for prim, pose in zip(obj["primitives"], obj["primitive_poses"]):
             t = pose["position"]
             quat = pose["orientation"]

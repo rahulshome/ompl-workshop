@@ -1,16 +1,21 @@
 import math
 import random
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, List
+import json
+import types
 
-import rerun as rr
+try:
+    import rerun as rr
+except ImportError:
+    rr = None
 import scipy
 from ompl import geometric as og
 
 import vamp
 
 
-def log_environment(rec: rr.RecordingStream, path: str, env: vamp.Environment):
+def log_environment(rec: "rr.RecordingStream", path: str, env: vamp.Environment):
     """
     Log the collision-checking environment from this demo.
     """
@@ -124,7 +129,7 @@ def log_environment(rec: rr.RecordingStream, path: str, env: vamp.Environment):
     rec.flush()
 
 
-def log_traj(rec: rr.RecordingStream, traj: og.PathGeometric):
+def log_traj(rec: "rr.RecordingStream", traj: og.PathGeometric):
 
     # `log_file_from_path` automatically uses the built-in URDF data-loader.
     urdf_path = Path(__file__).parent.parent / "panda/panda.urdf"
@@ -175,7 +180,7 @@ def log_traj(rec: rr.RecordingStream, traj: og.PathGeometric):
     rec.flush()
 
 
-def quat_from_r(R) -> rr.Quaternion:
+def quat_from_r(R) -> "rr.Quaternion":
     """
     Convert a rotation matrix to a Rerun quaternion.
     """
@@ -192,7 +197,7 @@ def quat_from_r(R) -> rr.Quaternion:
     return rr.Quaternion(xyzw=[q1, q2, q3, q0])
 
 
-def capsule_quat(v: Sequence[float]) -> rr.Quaternion:
+def capsule_quat(v: Sequence[float]) -> "rr.Quaternion":
     norm = math.sqrt(sum(vi * vi for vi in v))
     v = [vi / norm for vi in v]
 
@@ -208,3 +213,80 @@ def capsule_quat(v: Sequence[float]) -> rr.Quaternion:
     # TODO fix this to make capsules correct
 
     return rr.Quaternion(xyzw=rotation.as_quat())
+
+
+def export_trajectory(
+    json_path: str,
+    robot: types.ModuleType,
+    path: Sequence,
+    scene_path: str,
+    cylinder_pos: List[float] = [0.4, 0.6, 0.0],
+    dimension: int = 7
+):
+    """
+    Export OMPL path states and environment obstacles to a JSON file for visualizer.html.
+    """
+    from typing import List
+    import types
+    import json
+    import yaml
+    from scipy.spatial.transform import Rotation
+    
+    with open(scene_path) as f:
+        scene_data = yaml.safe_load(f)
+        
+    obstacles_data = []
+    for obj in scene_data.get("world", {}).get("collision_objects", []):
+        obj_id = obj.get("id", "")
+        is_mounting_base = "mounting_base" in obj_id
+        
+        for prim, pose in zip(obj["primitives"], obj["primitive_poses"]):
+            t = pose["position"]
+            quat = pose["orientation"]
+            r = Rotation.from_quat(quat)
+            euler = list(r.as_euler("xyz"))
+            ptype = prim["type"]
+            dims = prim["dimensions"]
+            
+            if ptype == "box":
+                obstacles_data.append({
+                    "type": "cuboid",
+                    "center": [float(val) for val in t],
+                    "rotation": [float(val) for val in euler],
+                    "half_extents": [float(d / 2.0) for d in dims],
+                    "is_mounting_base": is_mounting_base
+                })
+            elif ptype == "cylinder":
+                length = dims[0]
+                radius = dims[1]
+                start_pos = [float(t[0]), float(t[1]), float(t[2] - length / 2.0)]
+                obstacles_data.append({
+                    "type": "cylinder",
+                    "start": start_pos,
+                    "rotation": [float(val) for val in euler],
+                    "radius": float(radius),
+                    "length": float(length)
+                })
+                
+    scene_name = "cage" if "cage" in scene_path.lower() else "standard"
+    
+    frames_data = []
+    for q in path.getStates():
+        spheres = robot.fk(q[:7])
+        spheres_list = [[float(s.position[0]), float(s.position[1]), float(s.position[2]), float(s.r)] for s in spheres]
+        frames_data.append({
+            "stage": 1,
+            "q": [float(q[i]) for i in range(dimension)],
+            "robot_spheres": spheres_list,
+            "object_pos": cylinder_pos
+        })
+        
+    export_data = {
+        "obstacles": obstacles_data,
+        "frames": frames_data,
+        "scene_name": scene_name
+    }
+    
+    with open(json_path, "w") as f:
+        json.dump(export_data, f, indent=2)
+    print(f"Exported trajectory data to {json_path}")

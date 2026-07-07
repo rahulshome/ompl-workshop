@@ -3,8 +3,15 @@ import types
 from typing import Sequence
 
 import mbm
-import rerun as rr
-import vis
+try:
+    import rerun as rr
+    import vis
+except ImportError:
+    print("\n[ERROR] The rerun-sdk library is not installed.")
+    print("This demo requires Rerun for visualization.")
+    print("To install it, run: pip install rerun-sdk\n")
+    import sys
+    sys.exit(1)
 from ompl import base as ob
 from ompl import geometric as og
 
