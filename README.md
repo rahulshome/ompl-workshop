@@ -21,7 +21,7 @@ brew install eigen
 **1. Clone this repository**
 
 ```bash
-git clone https://github.com/KavrakiLab/ompl-workshop.git
+git clone https://github.com/rahulshome/ompl-workshop.git
 cd ompl-workshop
 ```
 
