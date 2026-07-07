@@ -13,10 +13,8 @@ from vis import export_trajectory
 DIMENSION = 7
 
 # Top down grasp
-# Q_GRASP = [1.1336, 0.9205, -0.191, -1.4283, 0.2096, 2.3289, 1.6573]
+Q_GRASP = [1.1336, 0.9205, -0.191, -1.4283, 0.2096, 2.3289, 1.6573]
 
-# Custom grasp 
-Q_GRASP = [0.9500, 0.8650, -0.0300, -1.9560, 2.9000, 1.9210, 0.8350]
 
 
 class VampMotionValidator(ob.MotionValidator):
