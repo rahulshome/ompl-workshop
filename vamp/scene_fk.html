@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OMPL 2 + VAMP Scene Visualizer</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Three.js, OrbitControls, OBJLoader, and JS-YAML CDNs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #0d0e12;
+            --panel-bg: rgba(22, 25, 35, 0.7);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --text-color: #f3f4f6;
+            --accent-blue: #0074d9;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .overlay {
+            position: absolute;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .interactive {
+            pointer-events: auto;
+        }
+
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        /* Top Title HUD */
+        #title-hud {
+            top: 24px;
+            left: 24px;
+            padding: 16px 20px;
+        }
+
+        #title-hud h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            letter-spacing: -0.025em;
+            margin-bottom: 4px;
+        }
+
+        .desc {
+            font-size: 0.8rem;
+            color: #9ca3af;
+            line-height: 1.4;
+        }
+
+        /* Bottom Control Panel */
+        #control-panel {
+            bottom: 32px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .btn {
+            background: #1f2937;
+            border: 1px solid var(--panel-border);
+            color: var(--text-color);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn:hover {
+            background: #374151;
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .btn-active {
+            background: var(--accent-blue);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .btn-active:hover {
+            background: #0056b3;
+        }
+
+        /* Loading Spinner */
+        #loader-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: var(--bg-color);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 0.5s ease;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border-top-color: var(--accent-blue);
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 16px;
+        }
+
+        #loader-text {
+            font-size: 0.9rem;
+            color: #9ca3af;
+        }
+
+        .desc {
+            font-size: 0.8rem;
+            color: #9ca3af;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+
+        .error-title {
+            color: #818cf8;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        #error-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            text-align: center;
+            max-width: 440px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="loader-overlay">
+        <div class="spinner"></div>
+        <div id="loader-text">Loading robot meshes & assets...</div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <!-- Error/CORS panel with manual upload option -->
+    <div id="error-overlay" class="overlay interactive glass-panel">
+        <div class="error-title">Data Upload Required</div>
+        <p class="desc">Browser security blocks automatic loading of local files (CORS). Upload the scene or trajectory file below:</p>
+        <button class="btn btn-primary" style="margin: 0 auto 12px auto;" onclick="document.getElementById('fileInput').value = ''; document.getElementById('fileInput').click()">Upload scene.yaml / trajectory.json</button>
+        <input type="file" id="fileInput" accept=".yaml,.yml,.json" style="display:none" onchange="loadLocalSceneFile(this)">
+        <div class="desc" style="font-size:0.7rem;">Or serve using: <code>python -m http.server</code></div>
+    </div>
+
+    <!-- Bottom Controls -->
+    <div id="control-panel" class="overlay interactive glass-panel" style="display: flex; flex-direction: column; gap: 12px; padding: 16px 24px; bottom: 24px;">
+        <!-- Row 1: Scene & Pose Presets -->
+        <div style="display: flex; align-items: center; gap: 16px; width: 100%;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 0.8rem; font-weight: 500; color: #9ca3af;">Scene:</span>
+                <button id="sceneStandardBtn" class="btn btn-active" onclick="setScene('standard')">Standard</button>
+                <button id="sceneCageBtn" class="btn" onclick="setScene('cage')">Cage (Walls)</button>
+            </div>
+            
+            <div style="height: 16px; border-left: 1px solid var(--panel-border);"></div>
+            
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 0.8rem; font-weight: 500; color: #9ca3af;">Pose:</span>
+                <button id="poseHomeBtn" class="btn btn-active" onclick="setPose('home')">Home</button>
+                <button id="poseGraspBtn" class="btn" onclick="setPose('grasp')">Top-Down Grasp</button>
+            </div>
+        </div>
+        
+        <!-- Row 2: Joint Config Text Box -->
+        <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+            <span style="font-size: 0.8rem; font-weight: 500; color: #9ca3af; white-space: nowrap;">Joint Config:</span>
+            <input type="text" id="configInput" style="background: #1f2937; border: 1px solid var(--panel-border); color: var(--text-color); padding: 8px 12px; border-radius: 6px; font-size: 0.8rem; font-family: monospace; flex-grow: 1; min-width: 320px;" placeholder="e.g. 0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785" onkeydown="if(event.key==='Enter') applyCustomPose()">
+            <button class="btn" onclick="applyCustomPose()">Apply</button>
+        </div>
+    </div>
+
+    <!-- Joint Controls Side Panel -->
+    <div id="joint-controls-panel" class="overlay interactive glass-panel" style="top: 24px; right: 24px; padding: 20px; width: 280px; display: flex; flex-direction: column; gap: 16px;">
+        <h2 style="font-size: 1rem; font-weight: 600; margin-bottom: 4px;">Joint Fine-Tuning</h2>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+            <div id="joint-rows-container"></div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: #9ca3af; margin-top: 4px;">
+            <span>Step Size:</span>
+            <select id="stepSelect" style="background: #1f2937; border: 1px solid var(--panel-border); color: var(--text-color); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; outline: none; cursor: pointer;">
+                <option value="0.01">0.01 rad</option>
+                <option value="0.05" selected>0.05 rad</option>
+                <option value="0.1">0.10 rad</option>
+                <option value="0.2">0.20 rad</option>
+            </select>
+        </div>
+    </div>
+
+    <script>
+        // Setup Three.js default coordinate frame so Z is UP (standard ROS / URDF coordinates)
+        THREE.Object3D.DefaultUp.set(0, 0, 1);
+
+        let scene, camera, renderer, controls;
+        let robotGroup = new THREE.Group();
+        const links = {};
+        const jointRotators = {};
+        const wallMeshes = [];
+        let obstacles = [];
+        let currentSceneMode = 'standard';
+        let uploadedData = null;
+        let uploadedType = null;
+
+        // Configuration Poses
+        const poses = {
+            home: [0.0, -0.785, 0.0, -2.356, 0.0, 1.571, 0.785],
+            grasp: [1.1336, 0.9205, -0.191, -1.4283, 0.2096, 2.3289, 1.6573],
+            grasp_front: [0.9500, 0.8650, -0.0300, -1.9560, 2.9000, 1.9210, 0.8350]
+        };
+
+        // URDF Joint offsets and configurations
+        const jointData = {
+            joint1: { parent: 'link0', child: 'link1', xyz: [0, 0, 0.333], rpy: [0, 0, 0] },
+            joint2: { parent: 'link1', child: 'link2', xyz: [0, 0, 0], rpy: [-1.57079632679, 0, 0] },
+            joint3: { parent: 'link2', child: 'link3', xyz: [0, -0.316, 0], rpy: [1.57079632679, 0, 0] },
+            joint4: { parent: 'link3', child: 'link4', xyz: [0.0825, 0, 0], rpy: [1.57079632679, 0, 0] },
+            joint5: { parent: 'link4', child: 'link5', xyz: [-0.0825, 0.384, 0], rpy: [-1.57079632679, 0, 0] },
+            joint6: { parent: 'link5', child: 'link6', xyz: [0, 0, 0], rpy: [1.57079632679, 0, 0] },
+            joint7: { parent: 'link6', child: 'link7', xyz: [0.088, 0, 0], rpy: [1.57079632679, 0, 0] },
+            joint8: { parent: 'link7', child: 'link8', xyz: [0, 0, 0.107], rpy: [0, 0, 0] },
+            hand_joint: { parent: 'link8', child: 'hand', xyz: [0, 0, 0], rpy: [0, 0, -0.785398163397] },
+            finger_joint1: { parent: 'hand', child: 'leftfinger', xyz: [0, 0.04, 0.0584], rpy: [0, 0, 0] },
+            finger_joint2: { parent: 'hand', child: 'rightfinger', xyz: [0, -0.04, 0.0584], rpy: [0, 0, 0] }
+        };
+
+        const localMeshUrls = {
+            link0: 'panda/meshes/visual/link0.obj',
+            link1: 'panda/meshes/visual/link1.obj',
+            link2: 'panda/meshes/visual/link2.obj',
+            link3: 'panda/meshes/visual/link3.obj',
+            link4: 'panda/meshes/visual/link4.obj',
+            link5: 'panda/meshes/visual/link5.obj',
+            link6: 'panda/meshes/visual/link6.obj',
+            link7: 'panda/meshes/collision/link7.obj',
+            hand: 'panda/meshes/visual/hand.obj',
+            finger: 'panda/meshes/visual/finger.obj'
+        };
+
+        const isLocal = window.location.protocol === 'file:';
+        const baseUrl = isLocal ? 'https://raw.githubusercontent.com/KavrakiLab/ompl-workshop/master/' : '';
+
+        // Initialize scene
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0b0e);
+            scene.fog = new THREE.FogExp2(0x0a0b0e, 0.06);
+
+            camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(2.2, -2.2, 1.6);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 - 0.01;
+            controls.minDistance = 0.5;
+
+            // Lights
+            const ambient = new THREE.AmbientLight(0xffffff, 0.3);
+            scene.add(ambient);
+
+            const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.85);
+            dirLight1.position.set(4, -6, 8);
+            dirLight1.castShadow = true;
+            dirLight1.shadow.mapSize.width = 2048;
+            dirLight1.shadow.mapSize.height = 2048;
+            dirLight1.shadow.camera.near = 0.5;
+            dirLight1.shadow.camera.far = 25;
+            scene.add(dirLight1);
+
+            const dirLight2 = new THREE.DirectionalLight(0x818cf8, 0.45);
+            dirLight2.position.set(-4, 6, 3);
+            scene.add(dirLight2);
+
+            const floorGrid = new THREE.GridHelper(10, 50, 0x1f2937, 0x111827);
+            floorGrid.rotation.x = Math.PI / 2;
+            floorGrid.position.z = -0.15; // table floor grid height
+            scene.add(floorGrid);
+
+            // Load Scene from active YAML files dynamically
+            loadScene(currentSceneMode);
+
+            // Assemble Robot Link Tree
+            buildRobotTree();
+
+            // Load OBJ meshes
+            loadRobotMeshes();
+
+            // Initialize joint controls fine-tuning panel UI
+            initJointControls();
+
+            // Apply default home configuration
+            setPose('home');
+
+            animate();
+        }
+
+        function buildFallbackEnvironment() {
+            // Table
+            const tableGeo = new THREE.BoxGeometry(1.6, 0.8, 0.1);
+            const darkGreyMat = new THREE.MeshStandardMaterial({ color: 0x24252a, roughness: 0.75 });
+            const tableMesh = new THREE.Mesh(tableGeo, darkGreyMat);
+            tableMesh.position.set(0.0, 0.6, -0.1);
+            tableMesh.receiveShadow = true;
+            tableMesh.castShadow = true;
+            scene.add(tableMesh);
+            obstacles.push(tableMesh);
+
+            // Cylinder
+            const cylinderGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.1, 32);
+            const redMat = new THREE.MeshStandardMaterial({ color: 0xff4136, roughness: 0.4 });
+            const cylinderMesh = new THREE.Mesh(cylinderGeo, redMat);
+            cylinderMesh.rotation.x = Math.PI / 2; // Orient along Z
+            cylinderMesh.position.set(0.4, 0.6, 0.0);
+            cylinderMesh.castShadow = true;
+            cylinderMesh.receiveShadow = true;
+            scene.add(cylinderMesh);
+            obstacles.push(cylinderMesh);
+
+            // Mounting Pedestal
+            const pedestalGeo = new THREE.BoxGeometry(0.24, 0.24, 0.3);
+            const pedestalMesh = new THREE.Mesh(pedestalGeo, darkGreyMat);
+            pedestalMesh.position.set(0.0, 0.0, 0.0);
+            pedestalMesh.castShadow = true;
+            pedestalMesh.receiveShadow = true;
+            scene.add(pedestalMesh);
+            obstacles.push(pedestalMesh);
+
+            // Left Wall
+            const leftWallGeo = new THREE.BoxGeometry(0.01, 0.16, 0.18);
+            const wallMat = new THREE.MeshPhysicalMaterial({
+                color: 0xefa7cf,
+                roughness: 0.2,
+                metalness: 0.05,
+                transparent: true,
+                opacity: 0.75,
+                transmission: 0.2
+            });
+            const leftWallMesh = new THREE.Mesh(leftWallGeo, wallMat);
+            leftWallMesh.position.set(0.25, 0.65, 0.04);
+            leftWallMesh.castShadow = true;
+            leftWallMesh.receiveShadow = true;
+            leftWallMesh.visible = (currentSceneMode === 'cage');
+            
+            const leftEdges = new THREE.EdgesGeometry(leftWallGeo);
+            const leftLine = new THREE.LineSegments(leftEdges, new THREE.LineBasicMaterial({ color: 0xff69b4 }));
+            leftWallMesh.add(leftLine);
+            scene.add(leftWallMesh);
+            wallMeshes.push(leftWallMesh);
+            obstacles.push(leftWallMesh);
+
+            // Right Wall
+            const rightWallGeo = new THREE.BoxGeometry(0.01, 0.16, 0.18);
+            const rightWallMesh = new THREE.Mesh(rightWallGeo, wallMat);
+            rightWallMesh.position.set(0.55, 0.65, 0.04);
+            rightWallMesh.castShadow = true;
+            rightWallMesh.receiveShadow = true;
+            rightWallMesh.visible = (currentSceneMode === 'cage');
+            
+            const rightEdges = new THREE.EdgesGeometry(rightWallGeo);
+            const rightLine = new THREE.LineSegments(rightEdges, new THREE.LineBasicMaterial({ color: 0xff69b4 }));
+            rightWallMesh.add(rightLine);
+            scene.add(rightWallMesh);
+            wallMeshes.push(rightWallMesh);
+            obstacles.push(rightWallMesh);
+
+            // Top Wall
+            const topWallGeo = new THREE.BoxGeometry(0.30, 0.16, 0.01);
+            const topWallMesh = new THREE.Mesh(topWallGeo, wallMat);
+            topWallMesh.position.set(0.40, 0.60, 0.12);
+            topWallMesh.castShadow = true;
+            topWallMesh.receiveShadow = true;
+            topWallMesh.visible = (currentSceneMode === 'cage');
+            
+            const topEdges = new THREE.EdgesGeometry(topWallGeo);
+            const topLine = new THREE.LineSegments(topEdges, new THREE.LineBasicMaterial({ color: 0xff69b4 }));
+            topWallMesh.add(topLine);
+            scene.add(topWallMesh);
+            wallMeshes.push(topWallMesh);
+            obstacles.push(topWallMesh);
+        }
+
+        async function loadScene(sceneType) {
+            currentSceneMode = sceneType;
+            
+            // Toggle active state on buttons
+            document.getElementById('sceneStandardBtn').classList.toggle('btn-active', sceneType === 'standard');
+            document.getElementById('sceneCageBtn').classList.toggle('btn-active', sceneType === 'cage');
+
+            // If we have manual uploaded file, toggle wall visibility directly without doing fetch calls!
+            if (uploadedData) {
+                wallMeshes.forEach(mesh => {
+                    mesh.visible = (currentSceneMode === 'cage');
+                });
+                return;
+            }
+
+            const problemDir = (sceneType === 'cage') ? 'pick_cage_panda' : 'pick_demo_panda';
+            const scenePath = `../problems/${problemDir}/scene.yaml`;
+
+            try {
+                const response = await fetch(scenePath);
+                if (!response.ok) throw new Error(`Could not fetch ${scenePath}`);
+                const yamlText = await response.text();
+                parseAndBuildScene(yamlText);
+                document.getElementById('error-overlay').style.display = 'none';
+            } catch (err) {
+                console.log("YAML fetch failed (CORS or file protocol), falling back to static definition.", err);
+                buildFallbackEnvironment();
+                document.getElementById('error-overlay').style.display = 'block';
+            }
+        }
+
+        function parseAndBuildScene(yamlText) {
+            const sceneData = jsyaml.load(yamlText);
+            
+            // Clear old obstacles
+            obstacles.forEach(mesh => scene.remove(mesh));
+            obstacles = [];
+            wallMeshes.length = 0;
+            
+            const darkGreyMat = new THREE.MeshStandardMaterial({ color: 0x24252a, roughness: 0.75 });
+            const redMat = new THREE.MeshStandardMaterial({ color: 0xff4136, roughness: 0.4 });
+            const wallMat = new THREE.MeshPhysicalMaterial({
+                color: 0xefa7cf,
+                roughness: 0.2,
+                metalness: 0.05,
+                transparent: true,
+                opacity: 0.75,
+                transmission: 0.2
+            });
+            
+            const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+            
+            const collisionObjects = (sceneData && sceneData.world && sceneData.world.collision_objects) || [];
+            collisionObjects.forEach(obj => {
+                const id = obj.id || "";
+                const isTable = id.includes("table");
+                const isMountingBase = id.includes("mounting_base");
+                const isWall = id.includes("wall");
+                
+                const primitives = obj.primitives || [];
+                const poses = obj.primitive_poses || [];
+                
+                primitives.forEach((prim, idx) => {
+                    const pose = poses[idx];
+                    const pos = pose.position;
+                    const quat = pose.orientation;
+                    
+                    let mesh;
+                    if (prim.type === 'box') {
+                        mesh = new THREE.Mesh(boxGeo, (isTable || isMountingBase) ? darkGreyMat : wallMat);
+                        const dims = prim.dimensions;
+                        mesh.scale.set(dims[0], dims[1], dims[2]);
+                        mesh.position.set(pos[0], pos[1], pos[2]);
+                        
+                        const q = new THREE.Quaternion(quat[0], quat[1], quat[2], quat[3]);
+                        mesh.rotation.setFromQuaternion(q);
+                        
+                        if (isWall) {
+                            const edges = new THREE.EdgesGeometry(boxGeo);
+                            const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xff69b4 }));
+                            mesh.add(line);
+                            
+                            wallMeshes.push(mesh);
+                            mesh.visible = (currentSceneMode === 'cage');
+                        }
+                    } else if (prim.type === 'cylinder') {
+                        const length = prim.dimensions[0];
+                        const radius = prim.dimensions[1];
+                        const cylGeo = new THREE.CylinderGeometry(radius, radius, length, 32);
+                        mesh = new THREE.Mesh(cylGeo, redMat);
+                        mesh.position.set(pos[0], pos[1], pos[2]);
+                        
+                        const q = new THREE.Quaternion(quat[0], quat[1], quat[2], quat[3]);
+                        const rotationMatrix = new THREE.Matrix4().makeRotationFromQuaternion(q);
+                        const alignMatrix = new THREE.Matrix4().makeRotationX(Math.PI / 2);
+                        rotationMatrix.multiply(alignMatrix);
+                        mesh.rotation.setFromRotationMatrix(rotationMatrix);
+                    }
+                    
+                    if (mesh) {
+                        mesh.castShadow = true;
+                        mesh.receiveShadow = true;
+                        scene.add(mesh);
+                        obstacles.push(mesh);
+                    }
+                });
+            });
+        }
+
+        function loadLocalSceneFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const fileName = file.name.toLowerCase();
+                
+                try {
+                    if (fileName.endsWith('.json')) {
+                        const data = JSON.parse(text);
+                        uploadedData = data;
+                        uploadedType = 'json';
+                        
+                        // Auto-detect scene mode (cage vs standard)
+                        const hasWalls = (data.obstacles || []).some(obs => {
+                            if (obs.type !== 'cuboid') return false;
+                            const isTable = (Math.abs(obs.center[0]) < 1e-4 && 
+                                             Math.abs(obs.center[1] - 0.6) < 1e-4 && 
+                                             Math.abs(obs.center[2] - (-0.1)) < 1e-4);
+                            const isMountingBase = obs.is_mounting_base || 
+                                                   (Math.abs(obs.center[0]) < 1e-4 && 
+                                                    Math.abs(obs.center[1]) < 1e-4 && 
+                                                    Math.abs(obs.center[2] - 0.0) < 1e-4);
+                            return !isTable && !isMountingBase;
+                        });
+                        
+                        currentSceneMode = hasWalls ? 'cage' : 'standard';
+                        document.getElementById('sceneStandardBtn').classList.toggle('btn-active', !hasWalls);
+                        document.getElementById('sceneCageBtn').classList.toggle('btn-active', hasWalls);
+                        
+                        buildJsonScene(data);
+                        document.getElementById('error-overlay').style.display = 'none';
+                    } else {
+                        uploadedData = text;
+                        uploadedType = 'yaml';
+                        
+                        const hasWalls = text.includes('wall');
+                        currentSceneMode = hasWalls ? 'cage' : 'standard';
+                        document.getElementById('sceneStandardBtn').classList.toggle('btn-active', !hasWalls);
+                        document.getElementById('sceneCageBtn').classList.toggle('btn-active', hasWalls);
+                        
+                        parseAndBuildScene(text);
+                        document.getElementById('error-overlay').style.display = 'none';
+                    }
+                } catch (err) {
+                    alert('Invalid file format: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function buildJsonScene(data) {
+            obstacles.forEach(mesh => scene.remove(mesh));
+            obstacles = [];
+            wallMeshes.length = 0;
+
+            const darkGreyMat = new THREE.MeshStandardMaterial({ color: 0x24252a, roughness: 0.75 });
+            const redMat = new THREE.MeshStandardMaterial({ color: 0xff4136, roughness: 0.4 });
+            const wallMat = new THREE.MeshPhysicalMaterial({
+                color: 0xefa7cf,
+                roughness: 0.2,
+                metalness: 0.05,
+                transparent: true,
+                opacity: 0.75,
+                transmission: 0.2
+            });
+
+            const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
+            const boxGeo = new THREE.BoxGeometry(2, 2, 2);
+            const cylGeo = new THREE.CylinderGeometry(1, 1, 1, 32);
+
+            const jsonObstacles = data.obstacles || [];
+            jsonObstacles.forEach(obs => {
+                let mesh;
+                if (obs.type === 'sphere') {
+                    mesh = new THREE.Mesh(sphereGeo, wallMat);
+                    mesh.scale.set(obs.radius, obs.radius, obs.radius);
+                    mesh.position.set(obs.center[0], obs.center[1], obs.center[2]);
+                } else if (obs.type === 'cuboid') {
+                    const isTable = (Math.abs(obs.center[0]) < 1e-4 && 
+                                     Math.abs(obs.center[1] - 0.6) < 1e-4 && 
+                                     Math.abs(obs.center[2] - (-0.1)) < 1e-4);
+                    const isMountingBase = obs.is_mounting_base || 
+                                           (Math.abs(obs.center[0]) < 1e-4 && 
+                                            Math.abs(obs.center[1]) < 1e-4 && 
+                                            Math.abs(obs.center[2] - 0.0) < 1e-4);
+                    
+                    const mat = (isTable || isMountingBase) ? darkGreyMat : wallMat;
+                    
+                    mesh = new THREE.Mesh(boxGeo, mat);
+                    mesh.scale.set(obs.half_extents[0], obs.half_extents[1], obs.half_extents[2]);
+                    mesh.position.set(obs.center[0], obs.center[1], obs.center[2]);
+                    mesh.rotation.set(obs.rotation[0], obs.rotation[1], obs.rotation[2]);
+                    
+                    if (!isTable && !isMountingBase) {
+                        const edges = new THREE.EdgesGeometry(boxGeo);
+                        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xff69b4 }));
+                        mesh.add(line);
+                        
+                        wallMeshes.push(mesh);
+                        mesh.visible = (currentSceneMode === 'cage');
+                    }
+                } else if (obs.type === 'cylinder') {
+                    const isTargetCylinder = (Math.abs(obs.start[0] - 0.4) < 1e-3 &&
+                                              Math.abs(obs.start[1] - 0.6) < 1e-3);
+                    
+                    const mat = isTargetCylinder ? redMat : wallMat;
+
+                    mesh = new THREE.Mesh(cylGeo, mat);
+                    mesh.scale.set(obs.radius, obs.length, obs.radius);
+                    mesh.position.set(obs.start[0], obs.start[1], obs.start[2] + obs.length / 2.0);
+                    mesh.rotation.set(obs.rotation[0] + Math.PI/2, obs.rotation[1], obs.rotation[2]);
+                }
+
+                if (mesh) {
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                    scene.add(mesh);
+                    obstacles.push(mesh);
+                }
+            });
+        }
+
+        function buildRobotTree() {
+            // Initialize Three.js group nodes
+            ['link0', 'link1', 'link2', 'link3', 'link4', 'link5', 'link6', 'link7', 'link8', 'hand', 'leftfinger', 'rightfinger'].forEach(name => {
+                links[name] = new THREE.Group();
+            });
+
+            robotGroup.add(links['link0']);
+            scene.add(robotGroup);
+
+            // Link parent-child linkages via joint offsets matching visualizer.html tree logic
+            Object.keys(jointData).forEach(jointName => {
+                const jd = jointData[jointName];
+                
+                const base = new THREE.Group();
+                base.position.set(jd.xyz[0], jd.xyz[1], jd.xyz[2]);
+                base.rotation.set(jd.rpy[0], jd.rpy[1], jd.rpy[2], 'ZYX');
+                
+                const rotator = new THREE.Group();
+                base.add(rotator);
+                rotator.add(links[jd.child]);
+                
+                links[jd.parent].add(base);
+                jointRotators[jointName] = rotator;
+            });
+        }
+
+        function loadRobotMeshes() {
+            const loader = new THREE.OBJLoader();
+            const robotMaterial = new THREE.MeshStandardMaterial({
+                color: 0xe5e7eb,
+                metalness: 0.15,
+                roughness: 0.45
+            });
+
+            let loadedCount = 0;
+            const total = Object.keys(localMeshUrls).length;
+
+            Object.entries(localMeshUrls).forEach(([linkName, url]) => {
+                loader.load(
+                    baseUrl + url,
+                    (obj) => {
+                        obj.traverse(child => {
+                            if (child.isMesh) {
+                                child.material = robotMaterial;
+                                child.castShadow = true;
+                                child.receiveShadow = true;
+                            }
+                        });
+
+                        if (linkName === 'finger') {
+                            links['leftfinger'].add(obj.clone());
+                            
+                            const rightObj = obj.clone();
+                            rightObj.rotation.z = Math.PI;
+                            links['rightfinger'].add(rightObj);
+                        } else {
+                            links[linkName].add(obj);
+                        }
+
+                        loadedCount++;
+                        if (loadedCount === total) {
+                            hideLoader();
+                        }
+                    },
+                    undefined,
+                    (err) => {
+                        console.error(`Failed to load mesh for link: ${linkName}. Falling back.`, err);
+                        loadedCount++;
+                        if (loadedCount === total) {
+                            hideLoader();
+                        }
+                    }
+                );
+            });
+        }
+
+        function hideLoader() {
+            const loader = document.getElementById('loader-overlay');
+            loader.style.opacity = 0;
+            setTimeout(() => {
+                loader.style.display = 'none';
+            }, 500);
+        }
+
+        let currentJointAngles = [0, 0, 0, 0, 0, 0, 0];
+
+        function initJointControls() {
+            const container = document.getElementById('joint-rows-container');
+            container.innerHTML = '';
+            
+            for (let i = 1; i <= 7; i++) {
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.alignItems = 'center';
+                row.style.justifyContent = 'space-between';
+                row.style.gap = '8px';
+                
+                row.innerHTML = `
+                    <span style="font-size: 0.8rem; font-weight: 600; min-width: 24px; color: #9ca3af;">J${i}</span>
+                    <button class="btn" style="padding: 4px 10px; font-weight: bold; font-size: 0.8rem; background: #1f2937;" onclick="adjustJoint(${i}, -1)">−</button>
+                    <input type="text" id="jointVal${i}" style="background: #191b22; border: 1px solid var(--panel-border); color: var(--text-color); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-family: monospace; width: 68px; text-align: center;" onchange="onJointInputChange(${i}, this.value)">
+                    <button class="btn" style="padding: 4px 10px; font-weight: bold; font-size: 0.8rem; background: #1f2937;" onclick="adjustJoint(${i}, 1)">+</button>
+                `;
+                container.appendChild(row);
+            }
+        }
+
+        function adjustJoint(jointIdx, direction) {
+            const step = parseFloat(document.getElementById('stepSelect').value);
+            let val = currentJointAngles[jointIdx - 1];
+            val += direction * step;
+            updateJointValue(jointIdx - 1, val);
+            syncToInput();
+        }
+
+        function onJointInputChange(jointIdx, value) {
+            const val = parseFloat(value);
+            if (isNaN(val)) {
+                updateJointUI();
+                return;
+            }
+            updateJointValue(jointIdx - 1, val);
+            syncToInput();
+        }
+
+        function updateJointValue(idx, val) {
+            currentJointAngles[idx] = val;
+            
+            const input = document.getElementById(`jointVal${idx + 1}`);
+            if (input) {
+                input.value = val.toFixed(3);
+            }
+            
+            const rotator = jointRotators[`joint${idx + 1}`];
+            if (rotator) {
+                rotator.rotation.z = val;
+            }
+        }
+
+        function updateJointUI() {
+            for (let i = 0; i < 7; i++) {
+                const input = document.getElementById(`jointVal${i + 1}`);
+                if (input) {
+                    input.value = currentJointAngles[i].toFixed(3);
+                }
+            }
+        }
+
+        function syncToInput() {
+            document.getElementById('configInput').value = currentJointAngles.map(n => n.toFixed(4)).join(', ');
+        }
+
+        function setPose(poseName) {
+            const config = poses[poseName];
+            if (!config) return;
+
+            // Update UI buttons
+            document.getElementById('poseHomeBtn').classList.toggle('btn-active', poseName === 'home');
+            document.getElementById('poseGraspBtn').classList.toggle('btn-active', poseName === 'grasp');
+
+            // Apply joint angles to array and rotators
+            for (let i = 0; i < 7; i++) {
+                updateJointValue(i, config[i]);
+            }
+            syncToInput();
+        }
+
+        function applyCustomPose() {
+            const inputVal = document.getElementById('configInput').value.trim();
+            const cleaned = inputVal.replace(/[\[\]]/g, '');
+            const parts = cleaned.split(',').map(s => parseFloat(s.trim()));
+            
+            if (parts.length !== 7 || parts.some(isNaN)) {
+                alert("Please enter exactly 7 comma-separated numbers for the joint angles.");
+                return;
+            }
+            
+            // Deactivate preset buttons active states
+            document.getElementById('poseHomeBtn').classList.remove('btn-active');
+            document.getElementById('poseGraspBtn').classList.remove('btn-active');
+            
+            // Apply joint angles to array and rotators
+            for (let i = 0; i < 7; i++) {
+                updateJointValue(i, parts[i]);
+            }
+        }
+
+        function setScene(sceneType) {
+            loadScene(sceneType);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        init3D();
+    </script>
+</body>
+</html>

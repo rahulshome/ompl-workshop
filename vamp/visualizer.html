@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OMPL 2 + VAMP 3D Visualizer</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Three.js, OrbitControls, and OBJLoader CDNs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/OBJLoader.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #0d0e12;
+            --panel-bg: rgba(22, 25, 35, 0.7);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --text-color: #f3f4f6;
+            --accent-orange: #ff4136;
+            --accent-green: #2ecc40;
+            --accent-blue: #0074d9;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Inter', sans-serif;
+            color: var(--text-color);
+        }
+
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .overlay {
+            position: absolute;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .interactive {
+            pointer-events: auto;
+        }
+
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+            padding: 20px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #info-panel {
+            top: 20px;
+            left: 20px;
+            max-width: 320px;
+        }
+
+        h1 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: -0.025em;
+            background: linear-gradient(90deg, #fff 0%, #a5b4fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .desc {
+            font-size: 0.8rem;
+            color: #9ca3af;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            margin-bottom: 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            padding-bottom: 4px;
+        }
+
+        .stat-label {
+            color: #6b7280;
+        }
+
+        .stat-value {
+            font-weight: 500;
+            color: #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        #control-panel {
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 680px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-color);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: rgba(255, 255, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4f46e5 0%, #3730a3 100%);
+            border: none;
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%);
+        }
+
+        .slider-container {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #6366f1;
+            box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+            transition: transform 0.1s;
+        }
+
+        select {
+            background: rgba(22, 25, 35, 0.8);
+            border: 1px solid var(--panel-border);
+            color: var(--text-color);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .stage-indicator {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            padding: 4px 10px;
+            border-radius: 20px;
+            display: inline-block;
+        }
+
+        .stage-approach {
+            background: rgba(255, 65, 54, 0.15);
+            color: #ff725c;
+            border: 1px solid rgba(255, 65, 54, 0.2);
+        }
+
+        .stage-transfer {
+            background: rgba(46, 204, 64, 0.15);
+            color: #2ecc40;
+            border: 1px solid rgba(46, 204, 64, 0.2);
+        }
+
+        #error-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            text-align: center;
+            max-width: 440px;
+            display: none;
+        }
+
+        .error-title {
+            color: #818cf8;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .time-label {
+            font-size: 0.75rem;
+            font-family: monospace;
+            color: #9ca3af;
+        }
+
+        /* Loading Spinner */
+        #loader-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #0d0e12;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: opacity 0.5s ease;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        #loader-text {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #9ca3af;
+        }
+
+        /* Checkbox style */
+        input[type="checkbox"] {
+            accent-color: #6366f1;
+            cursor: pointer;
+            width: 15px;
+            height: 15px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Initial Loading Screen -->
+    <div id="loader-overlay">
+        <div class="spinner"></div>
+        <div id="loader-text">Loading robot meshes & assets...</div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <!-- Error/CORS panel with manual upload option -->
+    <div id="error-overlay" class="overlay interactive glass-panel">
+        <div class="error-title">Data Upload Required</div>
+        <p class="desc">Browser security blocks automatic loading of local files (CORS). Upload the generated JSON trajectory file below:</p>
+        <button class="btn btn-primary" style="margin: 0 auto 12px auto;" onclick="document.getElementById('fileInput').click()">Upload trajectory_data.json</button>
+        <input type="file" id="fileInput" accept=".json" style="display:none" onchange="loadLocalFile(this)">
+        <div class="desc" style="font-size:0.7rem;">File located in: <code>vamp/trajectory_data.json</code></div>
+    </div>
+
+    <!-- Bottom Controls -->
+    <div id="control-panel" class="overlay interactive glass-panel" style="display: flex; flex-direction: column; gap: 12px; padding: 16px 24px;">
+        <!-- Row 1: Playback Controls -->
+        <div class="control-row" style="margin-bottom: 0; width: 100%;">
+            <button id="playBtn" class="btn btn-primary" onclick="togglePlay()">
+                <span id="playIcon">⏸</span> Pause
+            </button>
+            <button class="btn" onclick="resetAnimation()">Reset</button>
+            
+            <select id="speedSelect" onchange="changeSpeed(this)">
+                <option value="0.1">Speed: 0.1x</option>
+                <option value="0.2">Speed: 0.2x</option>
+                <option value="0.4" selected>Speed: 0.4x</option>
+                <option value="0.5">Speed: 0.5x</option>
+                <option value="1">Speed: 1x</option>
+                <option value="2">Speed: 2x</option>
+            </select>
+            
+            <div style="height: 16px; border-left: 1px solid var(--panel-border); margin: 0 4px;"></div>
+            
+            <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 500; color: #9ca3af; user-select: none;">
+                <input type="checkbox" id="spheresToggle" onchange="toggleSpheres(this.checked)" style="cursor: pointer;">
+                Collision Spheres
+            </label>
+            
+            <span id="sceneNameLabel" style="font-size: 0.8rem; font-weight: 600; color: #38bdf8; margin-left: auto;">Scene: Standard</span>
+        </div>
+
+        <!-- Row 2: Scrubber -->
+        <div class="control-row" style="margin-bottom: 0; width: 100%;">
+            <div class="slider-container">
+                <span class="time-label">0</span>
+                <input type="range" id="frameSlider" min="0" max="100" value="0" oninput="scrubFrame(this.value)">
+                <span id="maxFrameLabel" class="time-label">100</span>
+            </div>
+            <div class="time-label" style="min-width: 60px; text-align: right;">
+                Frame: <span id="currentFrameLabel">0</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Setup Three.js default coordinate frame so Z is UP (standard ROS / URDF coordinates)
+        THREE.Object3D.DefaultUp.set(0, 0, 1);
+
+        let scene, camera, renderer, controls;
+        let obstacles = [];
+        let robotSpheres = [];
+        let graspedObj;
+        let tableMesh;
+        
+        let trajectoryData = null;
+        let currentFrame = 0;
+        let isPlaying = true;
+        let playbackSpeed = 0.4;
+        let tickInterval = null;
+        const frameRate = 33; // ~30 fps
+
+        // Robot meshes setup
+        let robotGroup = new THREE.Group();
+        const links = {};
+        const jointRotators = {};
+        let showCollisionSpheres = false;
+
+        // URDF Joint data (offsets, rotations, axes)
+        const jointData = {
+            joint1: { parent: 'link0', child: 'link1', xyz: [0, 0, 0.333], rpy: [0, 0, 0] },
+            joint2: { parent: 'link1', child: 'link2', xyz: [0, 0, 0], rpy: [-1.57079632679, 0, 0] },
+            joint3: { parent: 'link2', child: 'link3', xyz: [0, -0.316, 0], rpy: [1.57079632679, 0, 0] },
+            joint4: { parent: 'link3', child: 'link4', xyz: [0.0825, 0, 0], rpy: [1.57079632679, 0, 0] },
+            joint5: { parent: 'link4', child: 'link5', xyz: [-0.0825, 0.384, 0], rpy: [-1.57079632679, 0, 0] },
+            joint6: { parent: 'link5', child: 'link6', xyz: [0, 0, 0], rpy: [1.57079632679, 0, 0] },
+            joint7: { parent: 'link6', child: 'link7', xyz: [0.088, 0, 0], rpy: [1.57079632679, 0, 0] },
+            joint8: { parent: 'link7', child: 'link8', xyz: [0, 0, 0.107], rpy: [0, 0, 0] },
+            hand_joint: { parent: 'link8', child: 'hand', xyz: [0, 0, 0], rpy: [0, 0, -0.785398163397] },
+            finger_joint1: { parent: 'hand', child: 'leftfinger', xyz: [0, 0.04, 0.0584], rpy: [0, 0, 0] },  // Gripper open 4cm
+            finger_joint2: { parent: 'hand', child: 'rightfinger', xyz: [0, -0.04, 0.0584], rpy: [0, 0, 0] }
+        };
+
+        const localMeshUrls = {
+            link0: 'panda/meshes/visual/link0.obj',
+            link1: 'panda/meshes/visual/link1.obj',
+            link2: 'panda/meshes/visual/link2.obj',
+            link3: 'panda/meshes/visual/link3.obj',
+            link4: 'panda/meshes/visual/link4.obj',
+            link5: 'panda/meshes/visual/link5.obj',
+            link6: 'panda/meshes/visual/link6.obj',
+            link7: 'panda/meshes/collision/link7.obj', // URDF matches collision
+            hand: 'panda/meshes/visual/hand.obj',
+            finger: 'panda/meshes/visual/finger.obj'
+        };
+
+        // Determine if running locally as file:// to apply raw GitHub CDN fallback
+        const isLocal = window.location.protocol === 'file:';
+        const baseUrl = isLocal ? 'https://raw.githubusercontent.com/KavrakiLab/ompl-workshop/master/' : '';
+
+        // Initialize 3D Scene
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+            
+            // Scene Setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0b0e);
+            scene.fog = new THREE.FogExp2(0x0a0b0e, 0.06);
+
+            // Camera Setup (Z-Up, looks towards robot center)
+            camera = new THREE.PerspectiveCamera(42, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(2.2, -2.2, 1.6);
+
+            // Renderer Setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 - 0.01; // Do not go below table floor
+            controls.minDistance = 0.5;
+            controls.maxDistance = 15;
+            controls.target.set(0, 0.3, 0.3);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.3);
+            scene.add(ambientLight);
+
+            const dirLight1 = new THREE.DirectionalLight(0xffffff, 0.85);
+            dirLight1.position.set(4, -6, 8);
+            dirLight1.castShadow = true;
+            dirLight1.shadow.mapSize.width = 2048;
+            dirLight1.shadow.mapSize.height = 2048;
+            dirLight1.shadow.camera.near = 0.5;
+            dirLight1.shadow.camera.far = 25;
+            scene.add(dirLight1);
+
+            const dirLight2 = new THREE.DirectionalLight(0x818cf8, 0.45); // Warm secondary indigo fill light
+            dirLight2.position.set(-4, 6, 3);
+            scene.add(dirLight2);
+
+            // Grid lying on the horizontal XY floor at Z = -0.15
+            const grid = new THREE.GridHelper(10, 50, 0x1f2937, 0x111827);
+            grid.rotation.x = Math.PI / 2; // Rotate XZ to XY
+            grid.position.z = -0.15;
+            scene.add(grid);
+
+            // Setup joint group structure
+            ['link0', 'link1', 'link2', 'link3', 'link4', 'link5', 'link6', 'link7', 'link8', 'hand', 'leftfinger', 'rightfinger'].forEach(name => {
+                links[name] = new THREE.Group();
+            });
+
+            robotGroup.add(links['link0']);
+            scene.add(robotGroup);
+
+            // Link parent-child linkages via joint offsets
+            Object.keys(jointData).forEach(jointName => {
+                const jd = jointData[jointName];
+                
+                const base = new THREE.Group();
+                base.position.set(jd.xyz[0], jd.xyz[1], jd.xyz[2]);
+                base.rotation.set(jd.rpy[0], jd.rpy[1], jd.rpy[2], 'ZYX');
+                
+                const rotator = new THREE.Group();
+                base.add(rotator);
+                rotator.add(links[jd.child]);
+                
+                links[jd.parent].add(base);
+                jointRotators[jointName] = rotator;
+            });
+
+            // Load Robot Meshes
+            loadRobotMeshes();
+
+            window.addEventListener('resize', onWindowResize, false);
+            animate();
+        }
+
+        // Load URDF visual meshes
+        function loadRobotMeshes() {
+            const objLoader = new THREE.OBJLoader();
+            const robotMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0xe5e7eb,
+                roughness: 0.3,
+                metalness: 0.1,
+                clearcoat: 0.25
+            });
+
+            let loadedCount = 0;
+            const keys = Object.keys(localMeshUrls);
+            const total = keys.length;
+
+            keys.forEach(linkName => {
+                const url = baseUrl + localMeshUrls[linkName];
+                objLoader.load(
+                    url,
+                    (obj) => {
+                        obj.traverse((child) => {
+                            if (child.isMesh) {
+                                child.material = robotMaterial;
+                                child.castShadow = true;
+                                child.receiveShadow = true;
+                            }
+                        });
+
+                        // Right finger in URDF visual element is rotated by 180 degrees
+                        if (linkName === 'finger') {
+                            // Left finger link
+                            links['leftfinger'].add(obj.clone());
+                            
+                            // Right finger link (rotated 180 degrees locally)
+                            const rightObj = obj.clone();
+                            rightObj.rotation.z = Math.PI;
+                            links['rightfinger'].add(rightObj);
+                        } else {
+                            links[linkName].add(obj);
+                        }
+
+                        loadedCount++;
+                        if (loadedCount === total) {
+                            hideLoader();
+                        }
+                    },
+                    undefined,
+                    (err) => {
+                        console.error(`Failed to load mesh for link: ${linkName}. Falling back.`, err);
+                        loadedCount++;
+                        if (loadedCount === total) {
+                            hideLoader();
+                        }
+                    }
+                );
+            });
+        }
+
+        function hideLoader() {
+            const loader = document.getElementById('loader-overlay');
+            loader.style.opacity = 0;
+            setTimeout(() => {
+                loader.style.display = 'none';
+            }, 500);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Build Environment obstacles & table
+        function buildEnvironment(data) {
+            obstacles.forEach(obj => scene.remove(obj));
+            obstacles = [];
+            if (tableMesh) scene.remove(tableMesh);
+
+            const sphereGeo = new THREE.SphereGeometry(1, 32, 32);
+            const boxGeo = new THREE.BoxGeometry(2, 2, 2);
+            const cylGeo = new THREE.CylinderGeometry(1, 1, 1, 32);
+
+            const sphereMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0xfdfd96,
+                roughness: 0.15,
+                metalness: 0.05,
+                transparent: true,
+                opacity: 0.65,
+                transmission: 0.3
+            });
+
+            const boxMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0xefa7cf,
+                roughness: 0.2,
+                metalness: 0.05,
+                transparent: true,
+                opacity: 0.7
+            });
+
+            const cylinderMaterial = new THREE.MeshPhysicalMaterial({
+                color: 0xffb26f,
+                roughness: 0.25,
+                metalness: 0.05,
+                transparent: true,
+                opacity: 0.7
+            });
+
+            // Table setup is now handled dynamically below from exported cuboid obstacles
+
+            data.obstacles.forEach(obs => {
+                let mesh;
+                if (obs.type === 'sphere') {
+                    mesh = new THREE.Mesh(sphereGeo, sphereMaterial);
+                    mesh.scale.set(obs.radius, obs.radius, obs.radius);
+                    mesh.position.set(obs.center[0], obs.center[1], obs.center[2]);
+                } else if (obs.type === 'cuboid') {
+                    // Check if this cuboid represents the table or the robot mounting base to style it as dark grey
+                    const isTable = (Math.abs(obs.center[0]) < 1e-4 && 
+                                     Math.abs(obs.center[1] - 0.6) < 1e-4 && 
+                                     Math.abs(obs.center[2] - (-0.1)) < 1e-4);
+                    const isMountingBase = obs.is_mounting_base || 
+                                           (Math.abs(obs.center[0]) < 1e-4 && 
+                                            Math.abs(obs.center[1]) < 1e-4 && 
+                                            Math.abs(obs.center[2] - 0.0) < 1e-4);
+                    
+                    const mat = (isTable || isMountingBase) ? 
+                        new THREE.MeshStandardMaterial({ color: 0x24252a, roughness: 0.75 }) : 
+                        boxMaterial;
+                    
+                    mesh = new THREE.Mesh(boxGeo, mat);
+                    mesh.scale.set(obs.half_extents[0], obs.half_extents[1], obs.half_extents[2]);
+                    mesh.position.set(obs.center[0], obs.center[1], obs.center[2]);
+                    mesh.rotation.set(obs.rotation[0], obs.rotation[1], obs.rotation[2]);
+                    
+                    if (!isTable && !isMountingBase) {
+                        mesh.isWallObstacle = true;
+                        const edges = new THREE.EdgesGeometry(boxGeo);
+                        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xff69b4 }));
+                        mesh.add(line);
+                    }
+                } else if (obs.type === 'cylinder') {
+                    const isTargetCylinder = (Math.abs(obs.start[0] - 0.4) < 1e-3 &&
+                                              Math.abs(obs.start[1] - 0.6) < 1e-3);
+                    
+                    const mat = isTargetCylinder ?
+                        new THREE.MeshStandardMaterial({ color: 0xff4136, roughness: 0.25, metalness: 0.1 }) :
+                        cylinderMaterial;
+
+                    mesh = new THREE.Mesh(cylGeo, mat);
+                    mesh.scale.set(obs.radius, obs.length, obs.radius);
+                    mesh.position.set(obs.start[0], obs.start[1], obs.start[2] + obs.length / 2.0);
+                    mesh.rotation.set(obs.rotation[0] + Math.PI/2, obs.rotation[1], obs.rotation[2]);
+                }
+
+                if (mesh) {
+                    mesh.castShadow = true;
+                    mesh.receiveShadow = true;
+                    scene.add(mesh);
+                    obstacles.push(mesh);
+                }
+            });
+        }
+
+        // Setup VAMP Collision spheres
+        function setupCollisionSpheres(numSpheres) {
+            robotSpheres.forEach(s => scene.remove(s));
+            robotSpheres = [];
+
+            const sphereGeo = new THREE.SphereGeometry(1, 16, 16);
+            const sphereMat = new THREE.MeshStandardMaterial({
+                color: 0xfefefe,
+                roughness: 0.4,
+                metalness: 0.1,
+                emissive: 0x888844,
+                emissiveIntensity: 0.2,
+                transparent: true,
+                opacity: 0.45
+            });
+
+            for (let i = 0; i < numSpheres; i++) {
+                const s = new THREE.Mesh(sphereGeo, sphereMat);
+                s.visible = showCollisionSpheres;
+                scene.add(s);
+                robotSpheres.push(s);
+            }
+        }
+
+        // Render Frame Data
+        function renderFrame(frameIdx) {
+            if (!trajectoryData || frameIdx >= trajectoryData.frames.length) return;
+            const frame = trajectoryData.frames[frameIdx];
+
+            // 1. Update URDF joint rotation angles
+            if (frame.q) {
+                for (let i = 1; i <= 7; i++) {
+                    const rotator = jointRotators[`joint${i}`];
+                    if (rotator) {
+                        rotator.rotation.z = frame.q[i - 1];
+                    }
+                }
+            }
+
+            // 2. Update collision spheres if enabled
+            if (frame.robot_spheres) {
+                frame.robot_spheres.forEach((sphData, idx) => {
+                    if (idx < robotSpheres.length) {
+                        const s = robotSpheres[idx];
+                        s.position.set(sphData[0], sphData[1], sphData[2]);
+                        s.scale.set(sphData[3], sphData[3], sphData[3]);
+                    }
+                });
+            }
+
+
+
+            // 4. Update UI labels
+            document.getElementById('currentFrameLabel').innerText = frameIdx;
+            document.getElementById('frameSlider').value = frameIdx;
+
+
+        }
+
+        // Toggles Collision Spheres vs Mesh geometries
+        function toggleSpheres(checked) {
+            showCollisionSpheres = checked;
+            
+            // Set collision spheres visibility
+            robotSpheres.forEach(s => { s.visible = checked; });
+
+            // Reduce mesh opacity when spheres are showing
+            const opacity = checked ? 0.35 : 1.0;
+            const transparent = checked;
+            Object.values(links).forEach(group => {
+                group.traverse(child => {
+                    if (child.isMesh) {
+                        child.material.transparent = transparent;
+                        child.material.opacity = opacity;
+                        child.material.needsUpdate = true;
+                    }
+                });
+            });
+        }
+
+        // Playback UI utilities
+        function togglePlay() {
+            isPlaying = !isPlaying;
+            const playBtn = document.getElementById('playBtn');
+            if (isPlaying) {
+                playBtn.innerHTML = '<span id="playIcon">⏸</span> Pause';
+                startInterval();
+            } else {
+                playBtn.innerHTML = '<span id="playIcon">▶</span> Play';
+                clearInterval(tickInterval);
+            }
+        }
+
+        function resetAnimation() {
+            currentFrame = 0;
+            renderFrame(currentFrame);
+        }
+
+        function scrubFrame(val) {
+            currentFrame = parseInt(val);
+            renderFrame(currentFrame);
+        }
+
+        function changeSpeed(select) {
+            playbackSpeed = parseFloat(select.value);
+        }
+
+        function startInterval() {
+            clearInterval(tickInterval);
+            tickInterval = setInterval(() => {
+                if (trajectoryData && isPlaying) {
+                    currentFrame += playbackSpeed;
+                    if (currentFrame >= trajectoryData.frames.length) {
+                        // Render last frame and pause for 2s
+                        renderFrame(trajectoryData.frames.length - 1);
+                        isPlaying = false;
+                        clearInterval(tickInterval);
+                        setTimeout(() => {
+                            currentFrame = 0;
+                            isPlaying = true;
+                            startInterval();
+                        }, 2000);
+                        return;
+                    }
+                    renderFrame(Math.floor(currentFrame));
+                }
+            }, frameRate);
+        }
+
+        function parseTrajectoryData(data) {
+            trajectoryData = data;
+            
+            // Rebuild static elements
+            buildEnvironment(data);
+
+            // Rebuild collision spheres
+            const numSpheres = data.frames[0].robot_spheres.length;
+            setupCollisionSpheres(numSpheres);
+
+            // Reset UI
+            const totalFrames = data.frames.length - 1;
+            document.getElementById('frameSlider').max = totalFrames;
+            document.getElementById('maxFrameLabel').innerText = totalFrames;
+
+            // Set scene label based on scene_name in JSON
+            const name = data.scene_name || 'standard';
+            const label = document.getElementById('sceneNameLabel');
+            if (label) {
+                if (name === 'cage') {
+                    label.innerText = 'Scene: Cage (Walls)';
+                    label.style.color = '#f472b6'; // Pink
+                } else {
+                    label.innerText = 'Scene: Standard';
+                    label.style.color = '#38bdf8'; // Blue
+                }
+            }
+
+
+            // Animate
+            currentFrame = 0;
+            isPlaying = true;
+            document.getElementById('playBtn').innerHTML = '<span id="playIcon">⏸</span> Pause';
+            startInterval();
+        }
+
+        function loadLocalFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    document.getElementById('error-overlay').style.display = 'none';
+                    parseTrajectoryData(data);
+                } catch (err) {
+                    alert('Invalid JSON file format: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        async function tryFetchData() {
+            try {
+                const response = await fetch('trajectory_data.json');
+                if (!response.ok) throw new Error('File not found');
+                const data = await response.json();
+                parseTrajectoryData(data);
+            } catch (err) {
+                console.log('Unable to load adjacent JSON automatically. Showing manual uploader.', err);
+                document.getElementById('error-overlay').style.display = 'block';
+            }
+        }
+
+        // Kickoff setup
+        init3D();
+        tryFetchData();
+    </script>
+</body>
+</html>

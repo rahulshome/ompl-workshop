@@ -1,0 +1,23 @@
+world:
+  collision_objects:
+    - id: table
+      primitives:
+        - type: box
+          dimensions: [1.6, 0.8, 0.1]
+      primitive_poses:
+        - position: [0.0, 0.6, -0.1]
+          orientation: [0.0, 0.0, 0.0, 1.0]
+    - id: target_cylinder
+      primitives:
+        - type: cylinder
+          dimensions: [0.1, 0.025]
+      primitive_poses:
+        - position: [0.4, 0.6, 0.0]
+          orientation: [0.0, 0.0, 0.0, 1.0]
+    - id: mounting_base
+      primitives:
+        - type: box
+          dimensions: [0.24, 0.24, 0.3]
+      primitive_poses:
+        - position: [0.0, 0.0, 0.0]
+          orientation: [0.0, 0.0, 0.0, 1.0]

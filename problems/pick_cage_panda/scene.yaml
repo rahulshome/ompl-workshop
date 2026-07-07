@@ -1,0 +1,44 @@
+world:
+  collision_objects:
+    - id: table
+      primitives:
+        - type: box
+          dimensions: [1.6, 0.8, 0.1]
+      primitive_poses:
+        - position: [0.0, 0.6, -0.1]
+          orientation: [0.0, 0.0, 0.0, 1.0]
+    - id: target_cylinder
+      primitives:
+        - type: cylinder
+          dimensions: [0.1, 0.025]
+      primitive_poses:
+        - position: [0.4, 0.6, 0.0]
+          orientation: [0.0, 0.0, 0.0, 1.0]
+    - id: mounting_base
+      primitives:
+        - type: box
+          dimensions: [0.24, 0.24, 0.3]
+      primitive_poses:
+        - position: [0.0, 0.0, 0.0]
+          orientation: [0.0, 0.0, 0.0, 1.0]
+    - id: left_wall
+      primitives:
+        - type: box
+          dimensions: [0.01, 0.16, 0.18]
+      primitive_poses:
+        - position: [0.25, 0.65, 0.04]
+          orientation: [0.0, 0.0, 0.0, 1.0]
+    - id: right_wall
+      primitives:
+        - type: box
+          dimensions: [0.01, 0.16, 0.18]
+      primitive_poses:
+        - position: [0.55, 0.65, 0.04]
+          orientation: [0.0, 0.0, 0.0, 1.0]
+    - id: top_wall
+      primitives:
+        - type: box
+          dimensions: [0.30, 0.26, 0.01]
+      primitive_poses:
+        - position: [0.40, 0.65, 0.12]
+          orientation: [0.0, 0.0, 0.0, 1.0]
